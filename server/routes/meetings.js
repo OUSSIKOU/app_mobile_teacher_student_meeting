@@ -39,6 +39,7 @@ router.post(
       .optional()
       .isInt({ min: 1, max: 50 })
       .withMessage("Max students must be between 1 and 50"),
+    body("teacherId").optional().isMongoId().withMessage("Invalid teacher ID"),
   ],
   async (req, res) => {
     try {
@@ -67,6 +68,7 @@ router.post(
         isPrivate,
         tags,
         notes,
+        teacherId,
       } = req.body;
 
       // Check if scheduled date is in the future
@@ -76,17 +78,30 @@ router.post(
           .json({ message: "Scheduled date must be in the future" });
       }
 
+      let meetingHost = req.user._id;
+      let enrolledStudents = [];
+
+      // If a student creates a meeting, they can specify a teacher and they are enrolled
+      if (req.user.role === "student") {
+        if (teacherId) {
+          meetingHost = teacherId;
+        }
+        enrolledStudents.push(req.user._id);
+      }
+
       const meeting = new Meeting({
         title,
         description,
-        teacher: req.user._id,
+        teacher: meetingHost,
         subject,
         scheduledDate,
         duration,
         maxStudents: maxStudents || 10,
         isPrivate: isPrivate || false,
+        students: enrolledStudents,
         tags: tags || [],
         notes,
+        createdBy: req.user._id,
       });
 
       await meeting.save();
